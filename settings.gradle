@@ -1,0 +1,9 @@
+rootProject.name = 'spring-bitcoin-neo4j'
+
+include 'spring-bitcoin-neo4j:spring-bitcoin-neo4j-core'
+include 'spring-bitcoin-neo4j:spring-bitcoin-neo4j-starter'
+include 'spring-bitcoin-neo4j:spring-bitcoin-neo4j-example-application'
+
+include 'spring-testcontainer:spring-testcontainer-neo4j-starter'
+
+include 'examples:bitcoin-transaction-stats-example-application'

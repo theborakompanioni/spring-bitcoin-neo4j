@@ -1,0 +1,166 @@
+import org.springframework.boot.gradle.plugin.SpringBootPlugin
+
+buildscript {
+    ext {
+        springBootVersion = '2.3.7.RELEASE'
+        protobufGradleVersion = '0.8.14'
+    }
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+        classpath("com.google.protobuf:protobuf-gradle-plugin:${protobufGradleVersion}")
+    }
+}
+
+plugins {
+    id 'idea'
+    id 'nebula.release' version '15.3.0'
+    id 'nebula.lint' version '16.9.1'
+    id 'nebula.project' version '7.0.9'
+    id 'nebula.info' version '7.1.3'
+    id 'org.springframework.boot' version "$springBootVersion" apply false
+}
+
+contacts {
+    'mail@example.com' {
+        moniker 'tbk'
+        role 'owner'
+        mail 'mail@1'
+        email 'mail@2'
+        github 'theborakompanioni'
+    }
+}
+
+apply from: 'versions.gradle'
+
+group = 'io.github.theborakompanioni'
+
+def testcontainersRyukDisabled = System.getenv("TESTCONTAINERS_RYUK_DISABLED") ?: "true"
+
+configurations.all {
+    resolutionStrategy {
+        // check for updates in modules every build
+        cacheChangingModulesFor 0, 'seconds'
+        preferProjectModules()
+        // fail eagerly on version conflict (includes transitive dependencies)
+        // e.g. multiple different versions of the same dependency (group and name are equal)
+        failOnVersionConflict()
+    }
+}
+
+subprojects {
+    apply plugin: 'idea'
+    apply plugin: 'java'
+    apply plugin: 'java-library'
+    apply plugin: 'nebula.lint'
+    apply plugin: 'nebula.project'
+    apply plugin: 'nebula.info'
+    apply plugin: 'com.google.protobuf'
+    apply plugin: 'io.spring.dependency-management'
+
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+
+    repositories {
+        jcenter()
+        maven {
+            // needed for consensusj packages
+            url "https://dl.bintray.com/msgilligan/maven"
+        }
+        maven {
+            // needed for spring-boot-bitcoin-starter packages
+            url 'https://jitpack.io'
+        }
+    }
+    
+    sourceSets {
+        main {
+            proto {
+                // In addition to the default 'src/main/proto'
+                srcDir file('src/main/java')
+            }
+        }
+    }
+
+    configurations {
+        developmentOnlyLocal
+        runtimeClasspath {
+            extendsFrom developmentOnlyLocal
+        }
+        compileOnly {
+            extendsFrom annotationProcessor
+        }
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom SpringBootPlugin.BOM_COORDINATES
+        }
+    }
+
+    dependencies {
+        compileOnly 'org.projectlombok:lombok'
+        annotationProcessor 'org.projectlombok:lombok'
+
+        implementation 'org.slf4j:slf4j-api'
+
+        developmentOnlyLocal 'org.springframework.boot:spring-boot-devtools'
+
+        implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+        implementation "com.google.protobuf:protobuf-java-util:${protobufVersion}"
+
+        testCompileOnly 'org.projectlombok:lombok'
+        testAnnotationProcessor 'org.projectlombok:lombok'
+
+        testImplementation('org.springframework.boot:spring-boot-starter-test') {
+            exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
+        }
+        testImplementation "junit:junit:${jUnitVersion}"
+    }
+
+    task sourcesJar(type: Jar) {
+        archiveClassifier.set('sources')
+        from sourceSets.main.allSource
+    }
+
+    task testJar(type: Jar) {
+        archiveClassifier.set('test')
+        from sourceSets.test.output
+    }
+
+    clean {
+        delete fileTree("${projectDir}") {
+            include '**/*.log'
+            include '**/*.log.*.gz'
+            include '**/*.log.*.tmp'
+        }
+    }
+
+    pluginManager.withPlugin('org.springframework.boot') {
+        bootRun {
+            environment "TESTCONTAINERS_RYUK_DISABLED", testcontainersRyukDisabled
+        }
+    }
+
+    test {
+        environment "TESTCONTAINERS_RYUK_DISABLED", testcontainersRyukDisabled
+    }
+    
+    artifacts {
+        archives testJar, sourcesJar
+    }
+
+    protobuf {
+        protoc { artifact = "com.google.protobuf:protoc:${protocVersion}" }
+
+        plugins {
+            grpc { artifact = "io.grpc:protoc-gen-grpc-java:${grpcVersion}" }
+        }
+
+        generateProtoTasks {
+            all()*.plugins { grpc {} }
+        }
+    }
+}
